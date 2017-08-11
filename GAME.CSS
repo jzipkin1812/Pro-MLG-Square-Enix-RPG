@@ -1,0 +1,17 @@
+#player {
+	position: absolute;
+	left: 10px;
+	top: 10px;
+	width: 100px;
+	height: 100px;
+	background: green;
+}
+
+#floor{
+	position: absolute;
+	left: 0px;
+	top: 500px;
+	width: 500px;
+	height: 10px;
+	background: black;
+}
