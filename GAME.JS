@@ -8,6 +8,10 @@
 var canvas = document.getElementById('gameCanvas'); 
 var tools = canvas.getContext('2d');
 
+var currentCharacter;
+
+var touchingCharacter = null;
+
 var playerXDirection = 0;
 var playerYDirection = 0;
 
@@ -15,6 +19,7 @@ var mouseCoordinates = new Vector2D();
 
 var jumpCharges = 2;
 var touchingLevelDoorway = false;
+var pressingQ = false;
 
 var gameState = 'cutscene';
 gameState = false;
@@ -41,6 +46,10 @@ var activeButtons = [];
 
 var forceStart = null;
 var forceEnd = null;
+
+function changeCharacter(character) {
+	currentCharacter = character;
+}
 
 function Cutscene() {
 	var me = this;
@@ -143,8 +152,9 @@ function Character(x, y, w, h, color, level) {
 	me.health = 100;
 	me.maxHealth = 100;
 	me.healthbar = new GameObject(0, 25, 250, 20, 'red');
+	me.healthbar.tags.push('healthbar');
 	// me.healthbar.fixed = true;
-	me.healthbar.static = true;
+	me.healthbar.kinematic = true;
 	me.healthbar.relative = me;
 
 	me.changeHealth = function( amount ) {
@@ -209,7 +219,7 @@ function Enemy(type, x, y) {
 	me.think = function() {
 		switch(type) {
 			case 'giantRat': {
-				var differenceVector = player.position.subtract(me.position);
+				var differenceVector = currentCharacter.position.subtract(me.position);
 				var distance = differenceVector.getMagnitude();
 
 				if(distance < 100) {
@@ -233,7 +243,12 @@ function Enemy(type, x, y) {
 	}
 }
 
-var player = new Character(0, 0, 50, 50, 'rgb(255, 150, 150)');
+var reese = new Character(0, 0, 50, 50, 'rgb(255, 150, 150)');
+currentCharacter = reese;
+var margaret = new Character(300, 300, 50, 50, 'rgb(200, 200, 200)');
+reese.tags.push('playableCharacter');
+margaret.tags.push('playableCharacter');
+
 var rock = new GameObject(30, 30, 60, 75, 'black');
 var ground = new GameObject(0, -400, 500, 5, "rgb(100, 100, 100)");
 ground.static = true;
@@ -248,8 +263,7 @@ var ground2 = new GameObject(200, -300, 500, 5);
 ground2.static = true;
 
 var rat = new Enemy("giantRat", 500, 100);
-
-var wizard = new Enemy("catWizard", 400, 200);
+// var wizard = new Enemy("catWizard", 400, 200);
 
 var introCutscene = new Cutscene();
 // introCutscene.addStep(player, {
@@ -262,7 +276,7 @@ var introCutscene = new Cutscene();
 // 	text: "In a faraway land where the letter Z was pronounced very weird, lived a prestigious royal family in their-"
 // });
 
-introCutscene.addStep(player, {
+introCutscene.addStep(reese, {
 	nature: 'ask',
 	text: "You there! Player! Why don’t you put something in?",
 	options: ['blue', 'green', 'yellow'],
@@ -284,8 +298,8 @@ function localToWorld(x, y){
 	var yOffset = Math.floor(screenHeight / 2);
 
 	return new Vector2D(
-		x += (player.position.x - xOffset),
-		y += (player.position.y + yOffset)
+		x += (currentCharacter.position.x - xOffset),
+		y += (currentCharacter.position.y + yOffset)
 	);
 }
 
@@ -316,25 +330,30 @@ window.addEventListener('mousedown', function(event) {
 		}
 	}
 
-
-
-	//// QUEEN FUNCTIONALITY
-	var worldPosition = localToWorld(event.clientX, -event.clientY);
-	forceStart = worldPosition;
+	if(currentCharacter == margaret) {
+		var worldPosition = localToWorld(event.clientX, -event.clientY);
+		forceStart = worldPosition;
+	}
 	
 });
 
 window.addEventListener('mouseup', function(event) {
 	//// QUEEN FUNCTIONALITY
-	var worldPosition = localToWorld(event.clientX, -event.clientY);
-	forceEnd = worldPosition;
-	var differenceVector = forceEnd.subtract(forceStart);
-	// differenceVector = differenceVector.normalize()
-	differenceVector = differenceVector.scale (0.05);
-	for(var objectIndex = 0; objectIndex < currentLevel.gameObjects.length; objectIndex++) {
-		var object = currentLevel.gameObjects[objectIndex];
-		if (object.static == false) {
-			object.velocity = object.velocity.add(differenceVector);	
+	if(currentCharacter == margaret) {
+		var worldPosition = localToWorld(event.clientX, -event.clientY);
+		forceEnd = worldPosition;
+		var differenceVector = forceEnd.subtract(forceStart);
+		// differenceVector = differenceVector.normalize()
+		differenceVector = differenceVector.scale (0.05);
+		for(var objectIndex = 0; objectIndex < currentLevel.gameObjects.length; objectIndex++) {
+			var object = currentLevel.gameObjects[objectIndex];
+			if(object.tags.indexOf('healthbar') != -1) {
+				continue;
+			}
+
+			if (object.static == false) {
+				object.velocity = object.velocity.add(differenceVector);	
+			}
 		}
 	}
 });
@@ -346,6 +365,14 @@ window.addEventListener('mousemove', function(event) {
 window.addEventListener('keydown', function(banana) {
 	if(gameState == 'cutscene') {
 		return false;
+	}
+
+	if(banana.keyCode == 84) {
+		//T
+		if(touchingCharacter) {
+			currentCharacter = touchingCharacter;
+			touchingCharacter = false;
+		}
 	}
 
 	if(banana.keyCode == 87) {
@@ -360,24 +387,26 @@ window.addEventListener('keydown', function(banana) {
 
 	if(banana.keyCode == 69){
 		// E
-		var randomColor = 'rgb('
-			+ Math.floor(Math.random() * 255) + ','
-			+ Math.floor(Math.random() * 255) + ','
-			+ Math.floor(Math.random() * 255) + ')';
-		var magicOrb = new GameObject(player.position.x, player.position.y, 50, 50, randomColor);
-		magicOrb.kinematic = true;
-		// mouseCoordinates
-		var differenceVector = mouseCoordinates.subtract(player.position);
-		differenceVector = differenceVector.normalize();
-		differenceVector = differenceVector.scale(10);
-		magicOrb.velocity = differenceVector;
-		magicOrb.behaviors.push(function() {
-			magicOrb.w -= 1;
-			magicOrb.h -= 1;
-			if(magicOrb.w <= 0) {
-				magicOrb.destroy();
-			}
-		});
+		if (currentCharacter == reese) {
+			var randomColor = 'rgb('
+				+ Math.floor(Math.random() * 255) + ','
+				+ Math.floor(Math.random() * 255) + ','
+				+ Math.floor(Math.random() * 255) + ')';
+			var magicOrb = new GameObject(reese.position.x, reese.position.y, 50, 50, randomColor);
+			magicOrb.kinematic = true;
+			// mouseCoordinates
+			var differenceVector = mouseCoordinates.subtract(reese.position);
+			differenceVector = differenceVector.normalize();
+			differenceVector = differenceVector.scale(10);
+			magicOrb.velocity = differenceVector;
+			magicOrb.behaviors.push(function() {
+				magicOrb.w -= 1;
+				magicOrb.h -= 1;
+				if(magicOrb.w <= 0) {
+					magicOrb.destroy();
+				}
+			});
+		}
 	}
 	if(banana.keyCode == 65) {
 		// A
@@ -389,28 +418,36 @@ window.addEventListener('keydown', function(banana) {
 	}
 	if(banana.keyCode == 81) {
 		// Q
-		var directions = [
-			new Vector2D(0, -10),
-			new Vector2D(0, 10),
-			new Vector2D(7, 7),
-			new Vector2D(-7, 7),
-			new Vector2D(7, -7),
-			new Vector2D(-7, -7),
-			new Vector2D(-10, 0),
-			new Vector2D(10, 0)
-		];
 
-		var index = 0;
-		while(index < 8) {
-			///
+		if (currentCharacter == reese) {
+			var directions = [
+				new Vector2D(0, -10),
+				new Vector2D(0, 10),
+				new Vector2D(7, 7),
+				new Vector2D(-7, 7),
+				new Vector2D(7, -7),
+				new Vector2D(-7, -7),
+				new Vector2D(-10, 0),
+				new Vector2D(10, 0)
+			];
 
-			var magicMissile = new GameObject(player.position.x, player.position.y, 10, 10, 'magenta');
-			magicMissile.tags.push('projectile');
-			magicMissile.lifespan = 2500;
-			magicMissile.kinematic = true;
-			magicMissile.velocity = directions[index];
-			index++;
+			var index = 0;
+			while(index < 8) {
+				///
+
+				var magicMissile = new GameObject(reese.position.x, reese.position.y, 10, 10, 'magenta');
+				magicMissile.tags.push('projectile');
+				magicMissile.lifespan = 2500;
+				magicMissile.kinematic = true;
+				magicMissile.velocity = directions[index];
+				index++;
+			}
 		}
+
+		if (currentCharacter == margaret) {
+			pressingQ = true;
+		}
+
 	}
 	if(banana.keyCode == 82) {
 		// R
@@ -421,7 +458,7 @@ window.addEventListener('keydown', function(banana) {
 
 	if(banana.keyCode == 32) {
 		if(jumpCharges > 0) {
-			player.velocity.y = 5;
+			currentCharacter.velocity.y = 5;
 			jumpCharges -= 1;
 		}
 	}
@@ -445,6 +482,13 @@ window.addEventListener('keyup', function(banana) {
 	if(banana.keyCode == 68) {
 		// D
 		playerXDirection = 0;
+	}
+
+	if(banana.keyCode == 81) {
+		//Q
+		if (currentCharacter == margaret) {
+			pressingQ = false;
+		}
 	}
 
 	if(banana.keyCode == 32) {
@@ -540,6 +584,13 @@ function update() {
 	for(var objectIndex = 0; objectIndex < gameObjects.length; objectIndex++) {
 		var object = gameObjects[objectIndex];
 
+		if(currentCharacter == margaret && pressingQ == true && object.static != true) {
+			var differenceVector = mouseCoordinates.subtract(object.position);
+			if (differenceVector.getMagnitude() < 400) {
+				object.velocity = differenceVector.scale(1 / differenceVector.getMagnitude());
+			}
+		}
+
 		if(object.behaviors.length) {
 			for (var behaviorIndex = 0; behaviorIndex < object.behaviors.length; behaviorIndex++) {
 				var behavior = object.behaviors[behaviorIndex]
@@ -566,7 +617,7 @@ function update() {
 
 			if (object.grounded == true) {
 				//// COLLISION!
-				if(object.velocity.x != 0 && (object != player || playerXDirection == 0)) {
+				if(object.velocity.x != 0 && (object != currentCharacter || playerXDirection == 0)) {
 					if(object.velocity.x > 0) {
 						object.velocity.x -= 0.15;
 						if(object.velocity.x < 0) {
@@ -584,7 +635,7 @@ function update() {
 
 			var staticCollision = false;
 
-			if(object == player) {
+			if(object == currentCharacter) {
 				touchingLevelDoorway = false;
 			}
 
@@ -603,7 +654,7 @@ function update() {
 						// if(!object.grounded) {
 							object.grounded = true;
 
-							if(object == player) {
+							if(object == currentCharacter) {
 								jumpCharges = 2;
 							}
 
@@ -614,11 +665,15 @@ function update() {
 						// }
 					}
 
-					if(object == player && collider.tags.indexOf("enemy") != -1) {
-						player.health -= collider.meleeDamage;
+					if(object == currentCharacter && collider.tags.indexOf('playableCharacter') != -1) {
+						touchingCharacter = collider;
 					}
 
-					if(collider.levelDoorway && object == player) {
+					if(object == currentCharacter && collider.tags.indexOf("enemy") != -1) {
+						currentCharacter.health -= collider.meleeDamage;
+					}
+
+					if(collider.levelDoorway && object == currentCharacter) {
 						touchingLevelDoorway = collider.levelDoorway;
 					}
 				} else {
@@ -646,7 +701,7 @@ function update() {
 
 		var drawX;
 		var drawY;
-		if(object == player) {
+		if(object == currentCharacter) {
 			tools.fillRect(xOffset, yOffset, object.w, object.h);
 		} else {
 			drawX = object.position.x;
@@ -658,8 +713,8 @@ function update() {
 			}
 
 			if(!object.fixed) {
-				drawX -= (player.position.x - xOffset);
-				drawY -= (player.position.y + yOffset);
+				drawX -= (currentCharacter.position.x - xOffset);
+				drawY -= (currentCharacter.position.y + yOffset);
 			}
 
 			tools.fillRect(drawX, -drawY, object.w, object.h);
@@ -701,17 +756,17 @@ function update() {
 	}
 
 	//// NEW PLAYER PHYSICS!
-	player.velocity.x += playerXDirection * player.speed;
+	currentCharacter.velocity.x += playerXDirection * currentCharacter.speed;
 
-	if(player.velocity.x > 0 && player.velocity.x > player.maxSpeed) {
-		player.velocity.x = player.maxSpeed;
-	} else if(player.velocity.x < 0 && player.velocity.x < -player.maxSpeed) {
-		player.velocity.x = -player.maxSpeed;
+	if(currentCharacter.velocity.x > 0 && currentCharacter.velocity.x > currentCharacter.maxSpeed) {
+		currentCharacter.velocity.x = currentCharacter.maxSpeed;
+	} else if(currentCharacter.velocity.x < 0 && currentCharacter.velocity.x < -currentCharacter.maxSpeed) {
+		currentCharacter.velocity.x = -currentCharacter.maxSpeed;
 	}
 
-	if (player.position.y < -1500) {
-		player.position.x = 0;
-		player.position.y = 0;
+	if (currentCharacter.position.y < -1500) {
+		currentCharacter.position.x = 0;
+		currentCharacter.position.y = 0;
 	}
 
 	lastUpdate = currentTime;
