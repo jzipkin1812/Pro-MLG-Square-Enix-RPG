@@ -125,16 +125,18 @@ function GameObject(x, y, w, h, color, level) {
 	me.kinematic = false;
 	me.fixed = false;
 	me.storyObject = false;
-	me.grounded = false;
+	// me.grounded = false;
+	me.ground = null;
 	me.levelDoorway = false;
 	me.relative = null;
 	me.lifetime = 0;
 	me.lifespan = null;
 
+	me.affectedObjects = [];
 	me.behaviors = [];
 
 	me.destroy = function() {
-		level.gameObjects.splice(level.gameObjects.indexOf(me));
+		level.gameObjects.splice(level.gameObjects.indexOf(me), 1);
 	}
 
 
@@ -151,7 +153,7 @@ function Character(x, y, w, h, color, level) {
 
 	me.health = 100;
 	me.maxHealth = 100;
-	me.healthbar = new GameObject(0, 25, 250, 20, 'red');
+	me.healthbar = new GameObject(0, 25, me.w, 20, 'red');
 	me.healthbar.tags.push('healthbar');
 	// me.healthbar.fixed = true;
 	me.healthbar.kinematic = true;
@@ -159,9 +161,12 @@ function Character(x, y, w, h, color, level) {
 
 	me.changeHealth = function( amount ) {
 		me.health += amount;
-
 		var decimal = me.health / me.maxHealth;
-		me.healthbar.w = 250 * decimal;
+		me.healthbar.w = me.w * decimal;
+
+		if(me.health <= 0) {
+			me.destroy();
+		}
 	}
 
 	me.say = function(phrase, options) {
@@ -188,6 +193,7 @@ function Enemy(type, x, y) {
 	var color;
 
 	me.meleeDamage = 0;
+	me.knockbackForce = 0;
 
 	switch(type) {
 		case 'giantRat': {
@@ -196,6 +202,7 @@ function Enemy(type, x, y) {
 			color = 'brown';
 			me.speed = 7;
 			me.meleeDamage = 5;
+			me.knockbackForce = 10;
 		} break;
 
 		case 'catWizard': {
@@ -204,6 +211,16 @@ function Enemy(type, x, y) {
 			color = 'brown';
 			me.speed = 7;
 			me.meleeDamage = 5;
+		} break;
+
+		case 'babyOrc': {
+			w = 45;
+			h = 45;
+			color = 'rgba(150, 180, 110, 0.8)';
+			me.speed = 3;
+			me.meleeDamage = 5;
+			me.health = 300;
+			me.maxHealth = 300;
 		} break;
 	}
 
@@ -239,7 +256,23 @@ function Enemy(type, x, y) {
 					distanceTravelled = 0;
 				}
 			} break;
-		}
+
+			case 'babyOrc': {
+				var decimal = me.health / me.maxHealth;
+				me.speed = 3 * (1 / decimal);
+
+				if(me.ground != null) {
+					if(xDirection > 0 && me.position.x >= me.ground.position.x + me.ground.w - me.w) {
+						xDirection *= -1;
+					} else if(xDirection < 0 && me.position.x <= me.ground.position.x) {
+						xDirection *= -1;
+					}
+
+					me.position.x += xDirection * me.speed;
+					distanceTravelled += me.speed;
+				}
+			} break;
+ 		}
 	}
 }
 
@@ -262,7 +295,8 @@ var someRock = new GameObject(10, 0, 50, 50, 'green', otherRoom);
 var ground2 = new GameObject(200, -300, 500, 5);
 ground2.static = true;
 
-var rat = new Enemy("giantRat", 500, 100);
+// var rat = new Enemy("giantRat", 500, 100);
+var babyOrc = new Enemy("babyOrc", 500, 100);
 // var wizard = new Enemy("catWizard", 400, 200);
 
 var introCutscene = new Cutscene();
@@ -394,6 +428,7 @@ window.addEventListener('keydown', function(banana) {
 				+ Math.floor(Math.random() * 255) + ')';
 			var magicOrb = new GameObject(reese.position.x, reese.position.y, 50, 50, randomColor);
 			magicOrb.kinematic = true;
+			magicOrb.tags.push('magicOrb');
 			// mouseCoordinates
 			var differenceVector = mouseCoordinates.subtract(reese.position);
 			differenceVector = differenceVector.normalize();
@@ -436,10 +471,12 @@ window.addEventListener('keydown', function(banana) {
 				///
 
 				var magicMissile = new GameObject(reese.position.x, reese.position.y, 10, 10, 'magenta');
-				magicMissile.tags.push('projectile');
-				magicMissile.lifespan = 2500;
+				// magicMissile.tags.push('projectile');
+				magicMissile.tags.push('magicMissile');
+				magicMissile.lifespan = 1000;
 				magicMissile.kinematic = true;
 				magicMissile.velocity = directions[index];
+
 				index++;
 			}
 		}
@@ -531,8 +568,6 @@ function update() {
 
 	tools.clearRect(0, 0, screenWidth, screenHeight);
 
-	var gameObjects = currentLevel.gameObjects;
-
 	if(animatingSteps.length == 0) {
 		if(queuedSteps.length > 0) {
 			animatingSteps.push(queuedSteps.shift());
@@ -581,10 +616,20 @@ function update() {
 	}
 
 
-	for(var objectIndex = 0; objectIndex < gameObjects.length; objectIndex++) {
-		var object = gameObjects[objectIndex];
+	for(var objectIndex = 0; objectIndex < currentLevel.gameObjects.length; objectIndex++) {
+		var object = currentLevel.gameObjects[objectIndex];
 
-		if(currentCharacter == margaret && pressingQ == true && object.static != true) {
+		if(object.lifespan != null) {
+			object.lifetime += deltaTime;
+
+			if(object.lifetime > object.lifespan) {
+				object.destroy();
+				objectIndex--;
+				continue;
+			}
+		}
+
+		if(currentCharacter == margaret && pressingQ == true && object.static != true && object != margaret) {
 			var differenceVector = mouseCoordinates.subtract(object.position);
 			if (differenceVector.getMagnitude() < 400) {
 				object.velocity = differenceVector.scale(1 / differenceVector.getMagnitude());
@@ -603,19 +648,10 @@ function update() {
 			object.think();
 		}
 
-		if(object.lifespan != null) {
-			object.lifetime += deltaTime;
-			if(object.lifetime > object.lifespan) {
-				object.destroy();
-				objectIndex--;
-				continue;
-			}
-		}
-
 		if(object.storyObject == false) {
 			object.position = object.position.add(object.velocity);
 
-			if (object.grounded == true) {
+			if (object.ground != null) {
 				//// COLLISION!
 				if(object.velocity.x != 0 && (object != currentCharacter || playerXDirection == 0)) {
 					if(object.velocity.x > 0) {
@@ -639,8 +675,8 @@ function update() {
 				touchingLevelDoorway = false;
 			}
 
-			for(var colliderIndex = 0; colliderIndex < gameObjects.length; colliderIndex++) {
-				var collider = gameObjects[colliderIndex];
+			for(var colliderIndex = 0; colliderIndex < currentLevel.gameObjects.length; colliderIndex++) {
+				var collider = currentLevel.gameObjects[colliderIndex];
 				if(object == collider) {
 					continue;
 				}
@@ -652,7 +688,7 @@ function update() {
 						object.velocity.y = 0;
 
 						// if(!object.grounded) {
-							object.grounded = true;
+							object.ground = collider;
 
 							if(object == currentCharacter) {
 								jumpCharges = 2;
@@ -665,12 +701,34 @@ function update() {
 						// }
 					}
 
+					if(object.tags.indexOf('enemy') != -1) {
+						if(collider.tags.indexOf('magicOrb') != -1) {
+							if(collider.affectedObjects.indexOf(object) == -1) {
+								object.changeHealth(-0.8);
+								collider.affectedObjects.push(object);
+							}
+						}
+
+						if(collider.tags.indexOf('magicMissile') != -1) {
+								object.changeHealth(-0.8);
+								collider.destroy();
+						}
+					}
+
+
+
 					if(object == currentCharacter && collider.tags.indexOf('playableCharacter') != -1) {
 						touchingCharacter = collider;
 					}
 
 					if(object == currentCharacter && collider.tags.indexOf("enemy") != -1) {
-						currentCharacter.health -= collider.meleeDamage;
+						currentCharacter.changeHealth(-collider.meleeDamage);
+						var differenceVector = currentCharacter.position.subtract(collider.position);
+						differenceVector = differenceVector.normalize();
+						differenceVector = differenceVector.scale(collider.knockbackForce);
+						currentCharacter.velocity = currentCharacter.velocity.add(differenceVector);	
+						var enemyKnockback = differenceVector.scale(-0.2);
+						collider.velocity = collider.velocity.add(enemyKnockback);
 					}
 
 					if(collider.levelDoorway && object == currentCharacter) {
@@ -682,10 +740,10 @@ function update() {
 			}
 
 			if(staticCollision == false) {
-				object.grounded = false;
+				object.ground = null;
 			}
 
-			if(!object.static && !object.grounded && !object.kinematic) {
+			if(!object.static && !object.ground && !object.kinematic) {
 				object.velocity.y -= 0.1;
 			}
 		}
