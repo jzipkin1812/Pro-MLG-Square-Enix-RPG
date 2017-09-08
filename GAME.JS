@@ -44,6 +44,9 @@ var currentStep = null;
 var activeButtons = [];
 
 var bowTimer = 0;
+var bowBar = new GameObject(0, 0, 0, 20, 'green');
+bowBar.kinematic = true;
+bowBar.active = false;
 
 var forceStart = null;
 var forceEnd = null;
@@ -115,6 +118,7 @@ function GameObject(x, y, w, h, color, level) {
 
 	var me = this;
 
+	me.active = true;
 	me.position = new Vector2D(x, y);
 	me.velocity = new Vector2D(0, 0);
 	me.text = null;
@@ -122,6 +126,7 @@ function GameObject(x, y, w, h, color, level) {
 	me.h = h;
 	me.tags = [];
 	me.color = color;
+	me.image = null;
 	me.static = false;
 	me.kinematic = false;
 	me.fixed = false;
@@ -158,6 +163,9 @@ function Character(x, y, w, h, color, level) {
 
 	me.health = 100;
 	me.maxHealth = 100;
+	me.mana = 100;
+	me.manaRegenerationRate = 0.01;
+
 	me.healthbar = new GameObject(0, 25, me.w, 20, 'red');
 	me.healthbar.tags.push('healthbar');
 	// me.healthbar.fixed = true;
@@ -290,10 +298,17 @@ function Enemy(type, x, y) {
 var reese = new Character(0, 0, 50, 50, 'rgb(255, 150, 150)');
 currentCharacter = reese;
 var max = new Character(400, 300, 50, 50, 'yellow');
+bowBar.relative = max;
+
 var margaret = new Character(300, 300, 50, 50, 'rgb(200, 200, 200)');
 reese.tags.push('playableCharacter');
 margaret.tags.push('playableCharacter');
 max.tags.push('playableCharacter');
+
+// var magaretPortrait = new GameObject();
+var manaBar = new GameObject(20, -20, 100, 10, 'rgba(0, 0, 100, 0.8)');
+manaBar.fixed = true;
+manaBar.kinematic = true;
 
 var rock = new GameObject(30, 30, 60, 75, 'black');
 var ground = new GameObject(0, -400, 500, 5, "rgb(100, 100, 100)");
@@ -385,8 +400,11 @@ window.addEventListener('mousedown', function(event) {
 			forceStart = worldPosition;
 		} break;
 
-		// case max: {
-		// } break;
+		case max: {
+			bowBar.active = true;
+			// bowBar.position = max.position;
+			bowBar.width = 0;
+		} break;
 	}
 	
 });
@@ -413,13 +431,18 @@ window.addEventListener('mouseup', function(event) {
 
 	if(currentCharacter == max) {
 		var charge = bowTimer / 3000;
-		var arrow = new GameObject(max.position.x, max.position.y, 10, 10, 'brown');
+		if(charge > 1) {
+			charge = 1;
+		}
+		var arrow = new GameObject(max.position.x, max.position.y, 30, 10, 'brown');
+		arrow.image = 'images/arrow.png';
 		arrow.tags.push('arrow');
 		var differenceVector = mouseCoordinates.subtract(max.position);
 		differenceVector = differenceVector.normalize();
 		differenceVector = differenceVector.scale(charge * 100);
 		arrow.velocity = differenceVector; 
 		bowTimer = 0;
+		bowBar.active = false;
 	}
 
 	mousingDown = false;
@@ -446,7 +469,12 @@ window.addEventListener('keydown', function(banana) {
 
 	if(banana.keyCode == 69){
 		// E
+		if(reese.mana <= 0) {
+			return;
+		}
+
 		if (currentCharacter == reese) {
+			reese.mana -= 2;
 			var randomColor = 'rgb('
 				+ Math.floor(Math.random() * 255) + ','
 				+ Math.floor(Math.random() * 255) + ','
@@ -615,11 +643,16 @@ function update() {
 
 	if(mousingDown && currentCharacter == max) {
 		bowTimer += deltaTime;
-		if(bowTimer > 3000) {
-			bowTimer = 3000;
+		var charge = bowTimer / 3000;
+
+		if(charge > 1) {
+			charge = 1;
 		}
 
-	}
+		bowBar.w = 300 * charge;
+	}	
+
+	manaBar.w = currentCharacter.mana / 100 * 500;
 
 	if(animatingSteps.length == 0) {
 		if(queuedSteps.length > 0) {
@@ -672,6 +705,10 @@ function update() {
 	for(var objectIndex = 0; objectIndex < currentLevel.gameObjects.length; objectIndex++) {
 		var object = currentLevel.gameObjects[objectIndex];
 
+		if(object.active == false) {
+			continue;
+		}
+
 		if(object.lifespan != null) {
 			object.lifetime += deltaTime;
 
@@ -704,6 +741,11 @@ function update() {
 		if(object.storyObject == false) {
 			object.position = object.position.add(object.velocity);
 
+			object.mana += deltaTime * object.manaRegenerationRate;
+			if(object.mana > 100) {
+				object.mana = 100;
+			}
+
 			if (object.ground != null) {
 				//// COLLISION!
 				if(object.velocity.x != 0 && (object != currentCharacter || playerXDirection == 0)) {
@@ -731,6 +773,10 @@ function update() {
 			for(var colliderIndex = 0; colliderIndex < currentLevel.gameObjects.length; colliderIndex++) {
 				var collider = currentLevel.gameObjects[colliderIndex];
 				if(object == collider) {
+					continue;
+				}
+
+				if(collider.active == false) {
 					continue;
 				}
 
@@ -840,7 +886,14 @@ function update() {
 				drawY -= (currentCharacter.position.y + yOffset);
 			}
 
-			tools.fillRect(drawX, -drawY, object.w, object.h);
+			if(object.image != null) {
+				var image = new Image();
+				image.src = object.image;
+				tools.drawImage(image, drawX, -drawY, object.w, object.h);
+			} else {
+				tools.fillRect(drawX, -drawY, object.w, object.h);
+			}
+
 		}
 
 
