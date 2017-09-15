@@ -44,6 +44,8 @@ var currentStep = null;
 var activeButtons = [];
 
 var bowTimer = 0;
+var reeseMissileTimer = 0;
+
 var bowBar = new GameObject(0, 0, 0, 20, 'green');
 bowBar.kinematic = true;
 bowBar.active = false;
@@ -121,6 +123,7 @@ function GameObject(x, y, w, h, color, level) {
 	me.active = true;
 	me.position = new Vector2D(x, y);
 	me.velocity = new Vector2D(0, 0);
+	me.xDirection = 0;
 	me.text = null;
 	me.w = w;
 	me.h = h;
@@ -156,6 +159,9 @@ function Character(x, y, w, h, color, level) {
 	GameObject.call(this, x, y, w, h, color, level);
 
 	var me = this;
+
+	// me.qTimer = 0;
+	// me.eTimer = 0;
 
 	me.speed = 0.5;
 	me.maxSpeed = 3.5;
@@ -299,11 +305,13 @@ var reese = new Character(0, 0, 50, 50, 'rgb(255, 150, 150)');
 currentCharacter = reese;
 var max = new Character(400, 300, 50, 50, 'yellow');
 bowBar.relative = max;
-
+var sam = new Character(300, 400, 50, 50, 'purple');
+sam.tags.push('playableCharacter');
 var margaret = new Character(300, 300, 50, 50, 'rgb(200, 200, 200)');
 reese.tags.push('playableCharacter');
 margaret.tags.push('playableCharacter');
 max.tags.push('playableCharacter');
+
 
 // var magaretPortrait = new GameObject();
 var manaBar = new GameObject(20, -20, 100, 10, 'rgba(0, 0, 100, 0.8)');
@@ -338,14 +346,14 @@ var introCutscene = new Cutscene();
 // 	text: "In a faraway land where the letter Z was pronounced very weird, lived a prestigious royal family in their-"
 // });
 
-introCutscene.addStep(reese, {
-	nature: 'ask',
-	text: "You there! Player! Why don’t you put something in?",
-	options: ['blue', 'green', 'yellow'],
-	callback: function(option) {
-		console.log("YOU SELECTED THE COLOR " + option);
-	}
-});
+// introCutscene.addStep(reese, {
+// 	nature: 'ask',
+// 	text: "You there! Player! Why don’t you put something in?",
+// 	options: ['blue', 'green', 'yellow'],
+// 	callback: function(option) {
+// 		console.log("YOU SELECTED THE COLOR " + option);
+// 	}
+// });
 
 // introCutscene.addStep(someRock, {
 // 	nature: 'move',
@@ -367,28 +375,30 @@ function localToWorld(x, y){
 
 window.addEventListener('mousedown', function(event) {
 	// console.log(currentStep[1].nature);
-	if(currentStep[1].nature == 'speak') {
-		if(activeDialog != null) {
-			activeDialog.destroy();
-			if(queuedDialogs.length > 0) {
-				activeDialog = queuedDialogs.shift();
-			} else {
-				activeDialog = null;
+	if(currentStep) {
+		if(currentStep[1].nature == 'speak') {
+			if(activeDialog != null) {
+				activeDialog.destroy();
+				if(queuedDialogs.length > 0) {
+					activeDialog = queuedDialogs.shift();
+				} else {
+					activeDialog = null;
+				}
 			}
-		}
-	} else if(currentStep[1].nature == 'ask') {
-		for(var index = 0; index < activeButtons.length; index++) {
-			var activeButton = activeButtons[index];
-			var collisionTest = new GameObject(event.clientX, -event.clientY, 1, 1);
-			var check = checkCollision(collisionTest, activeButton);
-			if(check) {
-				console.log(collisionTest.position);
-				currentStep[1].callback(activeButton.text);
-				animatingSteps.splice(animatingSteps.indexOf(currentStep));
-				// currentStep = 
-			}
+		} else if(currentStep[1].nature == 'ask') {
+			for(var index = 0; index < activeButtons.length; index++) {
+				var activeButton = activeButtons[index];
+				var collisionTest = new GameObject(event.clientX, -event.clientY, 1, 1);
+				var check = checkCollision(collisionTest, activeButton);
+				if(check) {
+					console.log(collisionTest.position);
+					currentStep[1].callback(activeButton.text);
+					animatingSteps.splice(animatingSteps.indexOf(currentStep));
+					// currentStep = 
+				}
 
-			collisionTest.destroy();
+				collisionTest.destroy();
+			}
 		}
 	}
 
@@ -469,82 +479,56 @@ window.addEventListener('keydown', function(banana) {
 
 	if(banana.keyCode == 69){
 		// E
-		if(reese.mana <= 0) {
-			return;
+		if (currentCharacter == sam) {
+			if(sam.mana > 20) {
+				sam.mana -= 20
+				var ghoul = new Character(sam.position.x, sam.position.y, 30, 30, 'black');
+				ghoul.tags.push('ghoul');
+				ghoul.behaviors.push(function() {
+					ghoul.velocity = new Vector2D(sam.xDirection * 9, 0);
+				});
+			}
 		}
-
 		if (currentCharacter == reese) {
-			reese.mana -= 2;
-			var randomColor = 'rgb('
-				+ Math.floor(Math.random() * 255) + ','
-				+ Math.floor(Math.random() * 255) + ','
-				+ Math.floor(Math.random() * 255) + ')';
-			var magicOrb = new GameObject(reese.position.x, reese.position.y, 50, 50, randomColor);
-			magicOrb.kinematic = true;
-			magicOrb.tags.push('magicOrb');
-			// mouseCoordinates
-			var differenceVector = mouseCoordinates.subtract(reese.position);
-			differenceVector = differenceVector.normalize();
-			differenceVector = differenceVector.scale(10);
-			magicOrb.velocity = differenceVector;
-			magicOrb.behaviors.push(function() {
-				magicOrb.w -= 1;
-				magicOrb.h -= 1;
-				if(magicOrb.w <= 0) {
-					magicOrb.destroy();
-				}
-			});
+			if(reese.mana > 2) {
+				reese.mana -= 2;
+
+				var randomColor = 'rgb('
+					+ Math.floor(Math.random() * 255) + ','
+					+ Math.floor(Math.random() * 255) + ','
+					+ Math.floor(Math.random() * 255) + ')';
+				var magicOrb = new GameObject(reese.position.x, reese.position.y, 50, 50, randomColor);
+				magicOrb.kinematic = true;
+				magicOrb.tags.push('magicOrb');
+				// mouseCoordinates
+				var differenceVector = mouseCoordinates.subtract(reese.position);
+				differenceVector = differenceVector.normalize();
+				differenceVector = differenceVector.scale(10);
+				magicOrb.velocity = differenceVector;
+				magicOrb.behaviors.push(function() {
+					magicOrb.w -= 1;
+					magicOrb.h -= 1;
+					if(magicOrb.w <= 0) {
+						magicOrb.destroy();
+					}
+				});
+			}
 		}
 	}
 	if(banana.keyCode == 65) {
 		// A
 		playerXDirection = -1;
+		currentCharacter.xDirection = -1;
 	}
 	if(banana.keyCode == 68) {
 		// D
 		playerXDirection = 1;
+		currentCharacter.xDirection = 1;
 	}
 	if(banana.keyCode == 81) {
 		// Q
 
-		switch(currentCharacter) {
-			case reese: {
-				var directions = [
-					new Vector2D(0, -10),
-					new Vector2D(0, 10),
-					new Vector2D(7, 7),
-					new Vector2D(-7, 7),
-					new Vector2D(7, -7),
-					new Vector2D(-7, -7),
-					new Vector2D(-10, 0),
-					new Vector2D(10, 0)
-				];
-
-				var index = 0;
-				while(index < 8) {
-					///
-
-					var magicMissile = new GameObject(reese.position.x, reese.position.y, 10, 10, 'magenta');
-					// magicMissile.tags.push('projectile');
-					magicMissile.tags.push('magicMissile');
-					magicMissile.lifespan = 1000;
-					magicMissile.kinematic = true;
-					magicMissile.velocity = directions[index];
-
-					index++;
-				}
-			} break;
-
-			case margaret: {
-				pressingQ = true;
-			} break;
-
-			case max: {
-
-			} break;
-
-
-		}
+		pressingQ = true;
 	}
 	if(banana.keyCode == 82) {
 		// R
@@ -561,16 +545,24 @@ window.addEventListener('keydown', function(banana) {
 	}
 
 	if(banana.keyCode == 49) {
+		//1
 		currentCharacter = reese;
 	}
 
 	if(banana.keyCode == 50) {
+		//2
 		currentCharacter = margaret;
 	}
 
 	if(banana.keyCode == 51) {
+		//YOU CAN COUNT
 		currentCharacter = max;
 	}
+	if(banana.keyCode == 52) {
+		//ITS A MYSTERY
+		currentCharacter = sam;
+	}
+
 
 });
 
@@ -596,9 +588,7 @@ window.addEventListener('keyup', function(banana) {
 
 	if(banana.keyCode == 81) {
 		//Q
-		if (currentCharacter == margaret) {
-			pressingQ = false;
-		}
+		pressingQ = false;
 	}
 
 	if(banana.keyCode == 32) {
@@ -701,6 +691,52 @@ function update() {
 		}
 	}
 
+	reeseMissileTimer += deltaTime;
+	if(pressingQ) {
+		switch(currentCharacter) {
+			case reese: {
+				if (reeseMissileTimer > 3000 && reese.mana > 30) {
+					var directions = [
+						new Vector2D(0, -10),
+						new Vector2D(0, 10),
+						new Vector2D(7, 7),
+						new Vector2D(-7, 7),
+						new Vector2D(7, -7),
+						new Vector2D(-7, -7),
+						new Vector2D(-10, 0),
+						new Vector2D(10, 0)
+					];
+
+					var index = 0;
+					while(index < 8) {
+						///
+						var magicMissile = new GameObject(reese.position.x, reese.position.y, 10, 10, 'magenta');
+						// magicMissile.tags.push('projectile');
+						magicMissile.tags.push('magicMissile');
+						magicMissile.lifespan = 1000;
+						magicMissile.kinematic = true;
+						magicMissile.velocity = directions[index];
+
+						index++;
+					}
+					reese.mana -= 30;
+					reeseMissileTimer = 0;
+				}
+
+
+			} break;
+
+			// case margaret: {
+			// } break;
+
+			case max: {
+				if(max.mana > 0.7) {
+					max.mana -= 0.7;
+				}
+
+			} break;
+		}
+	}
 
 	for(var objectIndex = 0; objectIndex < currentLevel.gameObjects.length; objectIndex++) {
 		var object = currentLevel.gameObjects[objectIndex];
@@ -719,10 +755,25 @@ function update() {
 			}
 		}
 
-		if(currentCharacter == margaret && pressingQ == true && object.static != true && object != margaret) {
-			var differenceVector = mouseCoordinates.subtract(object.position);
-			if (differenceVector.getMagnitude() < 400) {
-				object.velocity = differenceVector.scale(1 / differenceVector.getMagnitude());
+		if(pressingQ == true && object.static != true) {
+			switch(currentCharacter) {
+				case margaret: {
+					if(object != margaret) {
+						var differenceVector = mouseCoordinates.subtract(object.position);
+						if (differenceVector.getMagnitude() < 400) {
+							object.velocity = differenceVector.scale(1 / differenceVector.getMagnitude());
+						}
+					}
+				} break;
+
+				case max: {
+					if(max.mana > 0.7 && object.tags.indexOf('playableCharacter') != -1) {
+						var differenceVector = mouseCoordinates.subtract(object.position);
+						if (differenceVector.getMagnitude() < 600) {
+							object.changeHealth(2);
+						}
+					}
+				} break;
 			}
 		}
 
@@ -742,6 +793,7 @@ function update() {
 			object.position = object.position.add(object.velocity);
 
 			object.mana += deltaTime * object.manaRegenerationRate;
+
 			if(object.mana > 100) {
 				object.mana = 100;
 			}
@@ -821,7 +873,7 @@ function update() {
 							}
 						}
 						if(collider.tags.indexOf('magicMissile') != -1) {
-							object.changeHealth(-0.8);
+							object.changeHealth(-15);
 							collider.destroy();
 						}
 					}
@@ -852,6 +904,10 @@ function update() {
 
 			if(staticCollision == false) {
 				object.ground = null;
+			}
+
+			if(object.tags.indexOf('ghoul') != -1) {
+				console.log([object.static, object.kinematic, object.ground]);
 			}
 
 			if(!object.static && !object.ground && !object.kinematic) {
