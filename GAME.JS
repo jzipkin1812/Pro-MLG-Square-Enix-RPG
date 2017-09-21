@@ -1,8 +1,9 @@
 // javinzipkin@gmail.com
 
 // todo
-// magic bar
-// finish arrow
+	// sprite animation
+	// 
+	// gameObject rotation
 
 var canvas = document.getElementById('gameCanvas'); 
 var tools = canvas.getContext('2d');
@@ -18,6 +19,7 @@ var mousingDown = false;
 var mouseCoordinates = new Vector2D();
 
 var jumpCharges = 2;
+var activeGhouls = [];
 var touchingLevelDoorway = false;
 var pressingQ = false;
 
@@ -149,6 +151,10 @@ function GameObject(x, y, w, h, color, level) {
 		if (me.tags.indexOf('character') != -1) {
 			me.healthbar.destroy();
 		}
+
+		if (me.tags.indexOf('ghoul') != -1) {
+			activeGhouls.splice(activeGhouls.indexOf(me), 1);
+		}
 	}
 
 
@@ -202,6 +208,8 @@ function Character(x, y, w, h, color, level) {
 			activeButtons.push(button);
 		}
 	}
+
+
 }
 
 function Enemy(type, x, y) {
@@ -241,6 +249,16 @@ function Enemy(type, x, y) {
 			me.health = 300;
 			me.maxHealth = 300;
 		} break;
+
+		case 'shower': {
+			w = 45;
+			h = 45;
+			color = 'gray';
+			me.speed = 0;
+			me.meleeDamage = 0;
+			me.health = 200;
+			me.maxHealth = 200;
+		} break;
 	}
 
 	Character.call(this, x, y, w, h, color);
@@ -253,11 +271,11 @@ function Enemy(type, x, y) {
 	var mindstate = 'normal';
 
 	me.think = function() {
+		var differenceVector = currentCharacter.position.subtract(me.position);
+		var distance = differenceVector.getMagnitude();
+
 		switch(type) {
 			case 'giantRat': {
-				var differenceVector = currentCharacter.position.subtract(me.position);
-				var distance = differenceVector.getMagnitude();
-
 				if(distance < 100) {
 					if(mindstate == 'normal') {
 						mindstate = 'lunging';
@@ -297,6 +315,12 @@ function Enemy(type, x, y) {
 					distanceTravelled += me.speed;
 				}
 			} break;
+
+			case 'shower': {
+				if(distance < 400) {
+					// 
+				}
+			} break;
  		}
 	}
 }
@@ -332,7 +356,8 @@ var ground2 = new GameObject(200, -300, 500, 5);
 ground2.static = true;
 
 // var rat = new Enemy("giantRat", 500, 100);
-var babyOrc = new Enemy("babyOrc", 500, 100);
+// var babyOrc = new Enemy("babyOrc", 500, 100);
+var evilShower = new Enemy("shower", 500, 100);
 // var wizard = new Enemy("catWizard", 400, 200);
 
 var introCutscene = new Cutscene();
@@ -485,8 +510,10 @@ window.addEventListener('keydown', function(banana) {
 				var ghoul = new Character(sam.position.x, sam.position.y, 30, 30, 'black');
 				ghoul.tags.push('ghoul');
 				ghoul.behaviors.push(function() {
-					ghoul.velocity = new Vector2D(sam.xDirection * 9, 0);
+					ghoul.velocity.x = sam.xDirection * 4;
 				});
+
+				activeGhouls.push(ghoul);
 			}
 		}
 		if (currentCharacter == reese) {
@@ -596,11 +623,15 @@ window.addEventListener('keyup', function(banana) {
 	}
 });
 
-function checkCollision(gameObjectA, gameObjectB) {
-	var leftXA = gameObjectA.position.x;
-	var rightXA = leftXA + gameObjectA.w;
-	var topYA = gameObjectA.position.y;
-	var bottomYA = topYA - gameObjectA.h;
+function checkCollision(gameObjectA, gameObjectB, padding) {
+	if(padding == null) {
+		padding = 0;
+	}
+
+	var leftXA = gameObjectA.position.x - padding;
+	var rightXA = leftXA + gameObjectA.w + padding;
+	var topYA = gameObjectA.position.y + padding;
+	var bottomYA = topYA - gameObjectA.h - padding;
 
 	var leftXB = gameObjectB.position.x;
 	var rightXB = leftXB + gameObjectB.w;
@@ -694,6 +725,13 @@ function update() {
 	reeseMissileTimer += deltaTime;
 	if(pressingQ) {
 		switch(currentCharacter) {
+			case sam: {
+				for (var ghoulIndex = 0; ghoulIndex < activeGhouls.length; ghoulIndex++) {
+					var activeGhoul = activeGhouls[ghoulIndex];
+
+					activeGhoul.lifespan = 1;
+				}
+			} break;
 			case reese: {
 				if (reeseMissileTimer > 3000 && reese.mana > 30) {
 					var directions = [
@@ -749,6 +787,36 @@ function update() {
 			object.lifetime += deltaTime;
 
 			if(object.lifetime > object.lifespan) {
+				if(object.tags.indexOf('ghoul') != -1) {
+					for (var subjectIndex = 0; subjectIndex < currentLevel.gameObjects.length; subjectIndex++) {
+						var subject = currentLevel.gameObjects[subjectIndex];
+						if(subject.tags.indexOf('enemy') != -1) {
+							if (checkCollision(object, subject, 300)) {
+								subject.changeHealth(-30);
+							}
+						}
+					}
+
+					var particleCount = 20;
+					var xVelocity = -10;
+					while(particleCount) {
+						var colorString = 'rgb(';
+						colorString += Math.floor(155 + Math.random() * 100);
+						colorString += ', ';
+						colorString += Math.floor(30 + Math.random() * 100);
+						colorString += ', ';
+						colorString += Math.floor(0 + Math.random() * 100);
+						colorString += ')';
+						console.log(colorString);
+						var particle = new GameObject(object.position.x, object.position.y, 5, 5, colorString);
+						particle.velocity = new Vector2D(xVelocity, -5 + Math.random() * 10);
+						xVelocity += 1;
+						particleCount--;
+						particle.kinematic = true;
+						particle.lifespan = 3000;
+					}
+				}
+
 				object.destroy();
 				objectIndex--;
 				continue;
@@ -859,6 +927,12 @@ function update() {
 					}
 
 					if(object.tags.indexOf('enemy') != -1) {
+						if(collider.tags.indexOf('ghoul') !=-1) {
+							if(collider.lifespan == null) {
+								collider.lifespan = collider.lifetime + 1000;
+							}
+						}
+
 						if(collider.tags.indexOf('magicOrb') != -1) {
 							if(collider.affectedObjects.indexOf(object) == -1) {
 								object.changeHealth(-0.8);
@@ -904,10 +978,6 @@ function update() {
 
 			if(staticCollision == false) {
 				object.ground = null;
-			}
-
-			if(object.tags.indexOf('ghoul') != -1) {
-				console.log([object.static, object.kinematic, object.ground]);
 			}
 
 			if(!object.static && !object.ground && !object.kinematic) {
