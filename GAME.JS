@@ -195,10 +195,19 @@ function Character(x, y, w, h, color, level) {
 	}
 
 	me.say = function(phrase, options) {
-		var textObject = new GameObject(125, -125, 250, 100, "gray");
+		var portraitObject = new GameObject(screenWidth / 8, -screenHeight + 100, 100, 100, me.color);
+		portraitObject.fixed = true;
+		portraitObject.storyObject = true;
+		var textObject = new GameObject(screenWidth / 8 + 100, -screenHeight + 100, screenWidth * 0.75 - 100, 100, "gray");
+		textObject.fixed = true;
+		textObject.color = 'rgba(0, 0, 0, 0.8)';
 		textObject.text = phrase;
 		textObject.storyObject = true;
-		activeDialog = textObject;
+
+		activeDialog = {
+			portrait: portraitObject,
+			text: textObject
+		};
 
 		if(options) {
 			var button = new GameObject(125, -225, 150, 75, 'green');
@@ -208,8 +217,6 @@ function Character(x, y, w, h, color, level) {
 			activeButtons.push(button);
 		}
 	}
-
-
 }
 
 function Enemy(type, x, y) {
@@ -336,6 +343,28 @@ reese.tags.push('playableCharacter');
 margaret.tags.push('playableCharacter');
 max.tags.push('playableCharacter');
 
+var worldHole = new GameObject(250, -250, 100, 100, 'black');
+worldHole.kinematic = true;
+worldHole.behaviors.push(function() {
+	var midX = worldHole.position.x + worldHole.w / 2;
+	var midY = worldHole.position.y - worldHole.h / 2;
+	var particle = new GameObject(
+		-250 + (midX + Math.random() * 400 + 100),
+		-250 - (midY + Math.random() * 400 + 100),
+		6,
+		6,
+		'black'
+	);
+	particle.kinematic = true;
+	particle.tags.push('blackParticle');
+	var holeMid = new Vector2D(midX, midY);
+	var differenceVector = holeMid.subtract(particle.position);
+	differenceVector = differenceVector.normalize();
+	differenceVector = differenceVector.scale(Math.random());
+	particle.velocity = particle.velocity.add(differenceVector);
+});
+
+worldHole.tags.push('worldHole');
 
 // var magaretPortrait = new GameObject();
 var manaBar = new GameObject(20, -20, 100, 10, 'rgba(0, 0, 100, 0.8)');
@@ -361,15 +390,11 @@ var evilShower = new Enemy("shower", 500, 100);
 // var wizard = new Enemy("catWizard", 400, 200);
 
 var introCutscene = new Cutscene();
-// introCutscene.addStep(player, {
-// 	nature: 'move',
-// 	position: new Vector2D(100, -200)
-// 	// seconds: 3
-// });
-// introCutscene.addStep(player, {
-// 	nature: 'speak',
-// 	text: "In a faraway land where the letter Z was pronounced very weird, lived a prestigious royal family in their-"
-// });
+
+introCutscene.addStep(reese, {
+	nature: 'speak',
+	text: "In a faraway land where the letter Z was pronounced very weird, lived a prestigious royal family in their-"
+});
 
 // introCutscene.addStep(reese, {
 // 	nature: 'ask',
@@ -403,9 +428,15 @@ window.addEventListener('mousedown', function(event) {
 	if(currentStep) {
 		if(currentStep[1].nature == 'speak') {
 			if(activeDialog != null) {
-				activeDialog.destroy();
+				activeDialog.text.destroy();
+				activeDialog.portrait.destroy();
+
 				if(queuedDialogs.length > 0) {
-					activeDialog = queuedDialogs.shift();
+					var queuedDialog = queuedDialogs.shift()
+					activeDialog = {
+						text: queuedDialog['text'],
+						portrait: queuedDialog['portrait']
+					}
 				} else {
 					activeDialog = null;
 				}
@@ -416,7 +447,6 @@ window.addEventListener('mousedown', function(event) {
 				var collisionTest = new GameObject(event.clientX, -event.clientY, 1, 1);
 				var check = checkCollision(collisionTest, activeButton);
 				if(check) {
-					console.log(collisionTest.position);
 					currentStep[1].callback(activeButton.text);
 					animatingSteps.splice(animatingSteps.indexOf(currentStep));
 					// currentStep = 
@@ -952,7 +982,11 @@ function update() {
 						}
 					}
 
-
+					if(object.tags.indexOf('worldHole') != -1) {
+						if(collider.tags.indexOf('blackParticle') != -1) {
+							collider.destroy();
+						}
+					}
 
 					if(object == currentCharacter && collider.tags.indexOf('playableCharacter') != -1) {
 						touchingCharacter = collider;
@@ -1022,12 +1056,12 @@ function update() {
 
 		}
 
-
 		tools.fillStyle = 'black';
 
 		if(object.text != null) {
 			var words = object.text.split(' ');
 			tools.font = "20px serif";
+			tools.fillStyle = 'rgb(210, 210, 210)';
 
 			var line = "";
 			var yOffset = 0;
@@ -1043,15 +1077,15 @@ function update() {
 
 				var textMeasure = tools.measureText(line);
 
-				if(textMeasure.width > 200) {
-					tools.fillText(line, object.position.x + 20, -object.position.y + 20 + yOffset);
+				if(textMeasure.width > object.w) {
+					tools.fillText(line, drawX + 20, -drawY + 20 + yOffset);
 					yOffset += 20;
 					line = "";
 				}
 			}
 
 			if(line.length > 0) {
-				tools.fillText(line, object.position.x + 20, -object.position.y + 20 + yOffset);
+				tools.fillText(line, drawX + 20, -drawY + 20 + yOffset);
 			}
 
 		}
