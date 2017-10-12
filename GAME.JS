@@ -2,7 +2,7 @@
 
 // todo
 	// sprite animation
-	// 
+	// ghoul 65x78
 	// gameObject rotation
 
 var canvas = document.getElementById('gameCanvas'); 
@@ -132,6 +132,14 @@ function GameObject(x, y, w, h, color, level) {
 	me.tags = [];
 	me.color = color;
 	me.image = null;
+
+	me.animated = false;
+	me.currentFrame = 0;
+	me.frameWidth = null;
+	me.frameHeight = null;
+	me.frameLength = 50;
+	me.frameTimer = 0;
+	me.frameCount = 0;
 	me.static = false;
 	me.kinematic = false;
 	me.fixed = false;
@@ -325,7 +333,13 @@ function Enemy(type, x, y) {
 
 			case 'shower': {
 				if(distance < 400) {
-					// 
+					var waterDrop = new GameObject(me.position.x, me.position.y, 4, 4, 'blue');
+					var differenceVector = currentCharacter.position.subtract(me.position);
+					var waterVelocity = differenceVector.normalize();
+					waterVelocity = waterVelocity.scale(8);
+					waterDrop.lifespan = 2000;
+
+					waterDrop.velocity = waterVelocity;
 				}
 			} break;
  		}
@@ -343,28 +357,28 @@ reese.tags.push('playableCharacter');
 margaret.tags.push('playableCharacter');
 max.tags.push('playableCharacter');
 
-var worldHole = new GameObject(250, -250, 100, 100, 'black');
-worldHole.kinematic = true;
-worldHole.behaviors.push(function() {
-	var midX = worldHole.position.x + worldHole.w / 2;
-	var midY = worldHole.position.y - worldHole.h / 2;
-	var particle = new GameObject(
-		-250 + (midX + Math.random() * 400 + 100),
-		-250 - (midY + Math.random() * 400 + 100),
-		6,
-		6,
-		'black'
-	);
-	particle.kinematic = true;
-	particle.tags.push('blackParticle');
-	var holeMid = new Vector2D(midX, midY);
-	var differenceVector = holeMid.subtract(particle.position);
-	differenceVector = differenceVector.normalize();
-	differenceVector = differenceVector.scale(Math.random());
-	particle.velocity = particle.velocity.add(differenceVector);
-});
-
-worldHole.tags.push('worldHole');
+// var worldHole = new GameObject(500, -400, 100, 100, 'black');
+// worldHole.kinematic = true;
+// worldHole.behaviors.push(function() {
+// 	var midX = worldHole.position.x + worldHole.w / 2;
+// 	var midY = worldHole.position.y - worldHole.h / 2;
+// 	var range = 1000;
+// 	var particle = new GameObject(
+// 		(midX - (range)) + (Math.random() * range) + worldHole.w / 2,
+// 		midY + (Math.random() * 800) + 100,
+// 		6,
+// 		6,
+// 		'black'
+// 	);
+// 	particle.kinematic = true;
+// 	particle.tags.push('blackParticle');
+// 	var holeMid = new Vector2D(midX, midY);
+// 	var differenceVector = holeMid.subtract(particle.position);
+// 	differenceVector = differenceVector.normalize();
+// 	differenceVector = differenceVector.scale(Math.random() + 1);
+// 	particle.velocity = particle.velocity.add(differenceVector);
+// });
+// worldHole.tags.push('worldHole');
 
 // var magaretPortrait = new GameObject();
 var manaBar = new GameObject(20, -20, 100, 10, 'rgba(0, 0, 100, 0.8)');
@@ -537,7 +551,14 @@ window.addEventListener('keydown', function(banana) {
 		if (currentCharacter == sam) {
 			if(sam.mana > 20) {
 				sam.mana -= 20
-				var ghoul = new Character(sam.position.x, sam.position.y, 30, 30, 'black');
+				var ghoul = new Character(sam.position.x, sam.position.y, 100, 100, 'black');
+				ghoul.image = 'images/ShadowGhoul.png';
+
+				ghoul.animated = true;
+				ghoul.frameWidth = 65;
+				ghoul.frameHeight = 78;
+				ghoul.frameCount = 10;
+
 				ghoul.tags.push('ghoul');
 				ghoul.behaviors.push(function() {
 					ghoul.velocity.x = sam.xDirection * 4;
@@ -587,6 +608,7 @@ window.addEventListener('keydown', function(banana) {
 
 		pressingQ = true;
 	}
+
 	if(banana.keyCode == 82) {
 		// R
 		if(touchingLevelDoorway) {
@@ -679,6 +701,8 @@ function checkCollision(gameObjectA, gameObjectB, padding) {
 		return true;
 	}
 }
+
+var whatevertimer = 0;
 
 var lastUpdate = new Date();
 function update() {
@@ -1048,12 +1072,34 @@ function update() {
 
 			if(object.image != null) {
 				var image = new Image();
-				image.src = object.image;
-				tools.drawImage(image, drawX, -drawY, object.w, object.h);
+				if(object.animated == true) {
+					image.src = object.image;
+					object.frameTimer += deltaTime;
+					if(object.frameTimer > object.frameLength) {
+						object.currentFrame++;
+						object.frameTimer = 0;
+						if(object.currentFrame >= object.frameCount) {
+							object.currentFrame = 0;
+						}
+					}
+					tools.drawImage(
+						image,
+						object.currentFrame * object.frameWidth,
+						0,
+						object.frameWidth,
+						object.frameHeight,
+						drawX,
+						-drawY,
+						object.w,
+						object.h
+					);
+				} else {
+					image.src = object.image;
+					tools.drawImage(image, drawX, -drawY, object.w, object.h);
+				}
 			} else {
 				tools.fillRect(drawX, -drawY, object.w, object.h);
 			}
-
 		}
 
 		tools.fillStyle = 'black';
